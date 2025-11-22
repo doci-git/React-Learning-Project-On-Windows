@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>N0-key - Admin Panel</title>
+    <link rel="stylesheet" href="style1.css?v=3.0" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Circular,-apple-system,BlinkMacSystemFont,Roboto,Helvetica Neue,sans-serif&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="icon" type="image/x-icon" href="N0-key.ico">
+    <!-- Aggiungi questi script nell'head di admin.html -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  </head>
+  <body>
+    <div id="loginModal" class="login-modal">
+      <div class="login-container">
+        <h2><i class="fas fa-lock"></i> Accesso Amministratore</h2>
+        <p>Accedi con email e password</p>
+        <input
+          type="email"
+          id="adminEmail"
+          class="login-input"
+          placeholder="Email amministratore"
+          autocomplete="username"
+        />
+        <input
+          type="password"
+          id="adminPassword"
+          class="login-input"
+          placeholder="Password"
+          autocomplete="current-password"
+        />
+        <div id="loginError" class="login-error">
+          <i class="fas fa-exclamation-circle"></i> Credenziali non valide
+        </div>
+        <button id="btnLogin" class="btn">
+          <i class="fas fa-sign-in-alt"></i> Accedi
+        </button>
+      </div>
+    </div>
+
+    <div class="admin-container" id="adminContainer">
+      <div class="admin-header">
+        <h1><i class="fas fa-cogs"></i> Admin-area</h1>
+        <p>Gestisci le impostazioni del sistema di check-in</p>
+        <div>
+          <button
+            id="btnLogout"
+            class="btn btn-secondary"
+            style="margin-top: 8px"
+          >
+            <i class="fas fa-sign-out-alt"></i> Esci
+          </button>
+        </div>
+      </div>
+
+      <div class="admin-content">
+        <a href="index.html" class="back-button">
+          <i class="fas fa-arrow-left"></i> Torna alla schermata principale
+        </a>
+
+        <div class="admin-section">
+          <h3><i class="fas fa-key"></i> Gestione Codice Segreto</h3>
+          <div class="input-group">
+            <label for="currentCode">Codice attuale</label>
+            <input type="text" id="currentCode" readonly class="a12" />
+          </div>
+          <div class="input-group">
+            <label for="newCode">Nuovo codice</label>
+            <input
+              type="text"
+              id="newCode"
+              placeholder="Inserisci nuovo codice"
+            />
+          </div>
+          <button id="btnCodeUpdate" class="btn">
+            <i class="fas fa-sync-alt"></i> Aggiorna Codice
+          </button>
+        </div>
+
+        <div class="admin-section">
+          <h3><i class="fas fa-sliders-h"></i> Impostazioni Sistema</h3>
+          <div class="input-group">
+            <label for="currentMaxClicks">Click massimi consentiti</label>
+            <input type="number" id="currentMaxClicks" readonly class="a12" />
+          </div>
+          <div class="input-group">
+            <label for="newMaxClicks">Nuovo numero di click massimi</label>
+            <input
+              type="number"
+              id="newMaxClicks"
+              placeholder="Inserisci nuovo limite"
+              min="1"
+            />
+          </div>
+
+          <div class="input-group">
+            <label for="currentTimeLimit">Tempo limite sessione (minuti)</label>
+            <input type="number" id="currentTimeLimit" readonly class="a12" />
+          </div>
+          <div class="input-group">
+            <label for="newTimeLimit">Nuovo tempo limite (minuti)</label>
+            <input
+              type="number"
+              id="newTimeLimit"
+              placeholder="Inserisci nuovo limite"
+              min="1"
+            />
+          </div>
+
+          <button id="btnSettingsUpdate" class="btn">
+            <i class="fas fa-save"></i> Salva Impostazioni
+          </button>
+        </div>
+
+        <div class="admin-section">
+          <h3><i class="fas fa-clock"></i> Impostazioni Orario Check-in</h3>
+          <div class="input-group">
+            <label for="currentCheckinTimeRange">Range orario attuale</label>
+            <input
+              type="text"
+              id="currentCheckinTimeRange"
+              readonly
+              class="a12"
+            />
+          </div>
+
+          <div class="time-range-inputs">
+            <div class="input-group">
+              <label for="checkinStartTime">Orario inizio check-in</label>
+              <input type="time" id="checkinStartTime" value="14:00" />
+            </div>
+
+            <div class="input-group">
+              <label for="checkinEndTime">Orario fine check-in</label>
+              <input type="time" id="checkinEndTime" value="22:00" />
+            </div>
+          </div>
+
+          <div id="timeRangeError" class="admin-notification">
+            <p>
+              <i class="fas fa-exclamation-circle"></i> L'orario di fine deve
+              essere successivo all'orario di inizio
+            </p>
+          </div>
+
+          <button id="btnUpdateCheckinTime" class="btn">
+            <i class="fas fa-clock"></i> Aggiorna Orario Check-in
+          </button>
+        </div>
+
+        <div class="admin-section">
+          <h3><i class="fas fa-power-off"></i> Controllo Orario Check-in</h3>
+          <div class="input-group">
+            <label>Stato attuale: <span id="checkinTimeStatus"></span></label>
+          </div>
+          <button id="btnToggleCheckinTime" class="btn">
+            <i class="fas fa-toggle-on"></i> Attiva/Disattiva Controllo Orario
+          </button>
+        </div>
+
+        <div class="admin-section" style="display: none">
+          <h3><i class="fas fa-door-open"></i> Gestione Porte Extra</h3>
+          <div class="input-group">
+            <label>
+              <input type="checkbox" id="extraDoor1Visible" /> Mostra Extra Door
+              1
+            </label>
+          </div>
+          <div class="input-group">
+            <label>
+              <input type="checkbox" id="extraDoor2Visible" /> Mostra Extra Door
+              2
+            </label>
+          </div>
+          <button id="btnExtraDoorsVisibility" class="btn">
+            <i class="fas fa-check"></i> Applica Visibilità
+          </button>
+        </div>
+
+        <div class="admin-section">
+          <h3><i class="fas fa-link"></i> Generazione Link con Scadenza</h3>
+
+          <div class="input-group">
+            <label for="linkExpiration">Scadenza del link</label>
+            <select id="linkExpiration" class="login-input">
+              <option value="1">1 ora</option>
+              <option value="3">3 ore</option>
+              <option value="6">6 ore</option>
+              <option value="12">12 ore</option>
+              <option value="24" selected>24 ore</option>
+              <option value="48">48 ore</option>
+              <option value="72">72 ore</option>
+            </select>
+          </div>
+
+          <div class="input-group">
+            <label for="linkUsage">Utilizzi massimi</label>
+            <input
+              type="number"
+              id="linkUsage"
+              value="10"
+              min="1"
+              max="10"
+              class="login-input"
+            />
+          </div>
+
+          <div class="input-group">
+            <label for="linkCustomCode">Codice dedicato (opzionale)</label>
+            <input
+              type="text"
+              id="linkCustomCode"
+              placeholder="Inserisci codice personalizzato"
+            />
+            <small style="font-size: 12px; color: #666"
+              >Se vuoto, verrà usato il codice principale</small
+            >
+          </div>
+
+          <div class="input-group">
+            <label for="generatedSecureLink">Link sicuro generato</label>
+            <input
+              type="text"
+              id="generatedSecureLink"
+              readonly
+              placeholder="Il link apparirà qui"
+            />
+          </div>
+
+          <button id="btnGenerateSecureLink" class="btn">
+            <i class="fas fa-shield-alt"></i> Genera Link Sicuro
+          </button>
+
+          <button
+            id="btnCopySecureLink"
+            class="btn btn-secondary"
+            style="margin-left: 10px"
+          >
+            <i class="fas fa-copy"></i> Copia Link
+          </button>
+
+          <div class="input-group" style="margin-top: 20px">
+            <label>Link attivi:</label>
+            <div
+              id="activeLinksList"
+              style="
+                background: white;
+                padding: 10px;
+                border-radius: 8px;
+                max-height: 200px;
+                overflow-y: auto;
+              "
+            >
+              <!-- I link attivi appariranno qui -->
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-section" style="display: none">
+          <h3><i class="fas fa-chart-bar"></i> Statistiche Link</h3>
+
+          <div class="stats-grid">
+            <div class="stat-box">
+              <div class="stat-number" id="totalLinks">0</div>
+              <div class="stat-label">Link totali generati</div>
+            </div>
+
+            <div class="stat-box">
+              <div class="stat-number" id="activeLinks">0</div>
+              <div class="stat-label">Link attivi</div>
+            </div>
+
+            <div class="stat-box">
+              <div class="stat-number" id="usedLinks">0</div>
+              <div class="stat-label">Link utilizzati</div>
+            </div>
+
+            <div class="stat-box">
+              <div class="stat-number" id="expiredLinks">0</div>
+              <div class="stat-label">Link scaduti/revocati</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Aggiungi questa sezione dopo le altre sezioni admin -->
+        <div class="admin-section">
+          <h3><i class="fas fa-mobile-alt"></i> Ripristino Sessione Locale</h3>
+          <p>
+            Utilizza questa funzione se la sessione risulta bloccata sul tuo
+            dispositivo.
+          </p>
+          <div class="warning-box">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Attenzione:</strong> Questa azione ripristina solo la
+            sessione sul dispositivo corrente.
+          </div>
+          <button id="btnResetLocalSession" class="btn btn-warning">
+            <i class="fas fa-sync-alt"></i> Ripristina Sessione Locale
+          </button>
+          <br />
+          <br />
+          <div class="warning-box1">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Attenzione:</strong> Questa azione sblocca e riapre i link
+            per tutti, ridando accesso (se hai cambiatto il codice al utenti
+            servira il nuovo codice) .
+          </div>
+          <button id="btnResetSessions" class="btn btn-warning1">
+            <i class="fas fa-sync-alt"></i> Ripristina Tutte Sessione
+          </button>
+          <div id="localResetResult" class="reset-result"></div>
+        </div>
+
+        <!-- Aggiungi questa sezione dopo le altre sezioni admin -->
+        <div class="admin-section">
+          <h3><i class="fas fa-door-open"></i> Apertura Porte Remota</h3>
+          <p>Apri le porte direttamente dal pannello di controllo.</p>
+
+          <div class="door-controls-admin">
+            <!-- Porta Principale -->
+            <div class="door-control-admin">
+              <h4><i class="fas fa-building"></i> Porta Principale</h4>
+              <div class="door-status">
+                <span class="status-indicator" id="mainDoorStatus"></span>
+                <span id="mainDoorStatusText">Stato: Non verificato</span>
+              </div>
+              <button id="btnOpenMainDoor" class="btn btn-door">
+                <i class="fas fa-key"></i> Apri Porta Principale
+              </button>
+              <div id="mainDoorResult" class="door-result"></div>
+            </div>
+
+            <!-- Porta Appartamento -->
+            <div class="door-control-admin">
+              <h4><i class="fas fa-home"></i> Porta Appartamento</h4>
+              <div class="door-status">
+                <span class="status-indicator" id="aptDoorStatus"></span>
+                <span id="aptDoorStatusText">Stato: Non verificato</span>
+              </div>
+              <button id="btnOpenAptDoor" class="btn btn-door">
+                <i class="fas fa-key"></i> Apri Porta Appartamento
+              </button>
+              <div id="aptDoorResult" class="door-result"></div>
+            </div>
+
+            <!-- Porta Extra 1 -->
+            <div class="door-control-admin" id="extraDoor1Admin">
+              <h4><i class="fas fa-door-open"></i> Porta Extra 1</h4>
+              <div class="door-status">
+                <span class="status-indicator" id="extraDoor1Status"></span>
+                <span id="extraDoor1StatusText">Stato: Non verificato</span>
+              </div>
+              <button id="btnOpenExtraDoor1" class="btn btn-door">
+                <i class="fas fa-key"></i> Apri Porta Extra 1
+              </button>
+              <div id="extraDoor1Result" class="door-result"></div>
+            </div>
+
+            <!-- Porta Extra 2 -->
+            <div
+              class="door-control-admin"
+              id="extraDoor2Admin"
+              style="display: none"
+            >
+              <h4><i class="fas fa-door-open"></i> Porta Extra 2</h4>
+              <div class="door-status">
+                <span class="status-indicator" id="extraDoor2Status"></span>
+                <span id="extraDoor2StatusText">Stato: Non verificato</span>
+              </div>
+              <button id="btnOpenExtraDoor2" class="btn btn-door">
+                <i class="fas fa-key"></i> Apri Porta Extra 2
+              </button>
+              <div id="extraDoor2Result" class="door-result"></div>
+            </div>
+          </div>
+
+          <!-- Apertura Multipla -->
+          <div class="bulk-actions" style="display: none">
+            <h4><i class="fas fa-bolt"></i> Azioni Rapide</h4>
+            <button id="btnOpenAllDoors" class="btn btn-bulk">
+              <i class="fas fa-sync-alt"></i> Apri Tutte le Porte
+            </button>
+            <button id="btnCheckAllDoors" class="btn btn-bulk">
+              <i class="fas fa-search"></i> Verifica Stato Tutte le Porte
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script defer src="admin.js?v=3.0"></script>
+  </body>
+</html>
