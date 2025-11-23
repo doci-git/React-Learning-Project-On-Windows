@@ -5,6 +5,7 @@
     "dev": "netlify dev"
   },
   "dependencies": {
+    "firebase-admin": "^12.6.0",
     "node-fetch": "^2.6.7"
   }
 }

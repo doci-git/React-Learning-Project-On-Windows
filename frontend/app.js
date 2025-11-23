@@ -146,6 +146,21 @@
     return p;
   }
 
+  function getDeviceId() {
+    try {
+      let id = localStorage.getItem("device_fp_v1");
+      if (!id) {
+        const rand = Math.random().toString(36).slice(2);
+        const ts = Date.now().toString(36);
+        id = `dev-${ts}-${rand}`;
+        localStorage.setItem("device_fp_v1", id);
+      }
+      return id;
+    } catch {
+      return "dev-" + Date.now();
+    }
+  }
+
   // =============================================
   // STORAGE
   // =============================================
@@ -830,6 +845,8 @@
             deviceId: device.id,
             command: "open",
             payload: { channel: 0 },
+            linkToken: currentTokenId || null,
+            clientDeviceId: getDeviceId(),
           }),
         },
         12000
