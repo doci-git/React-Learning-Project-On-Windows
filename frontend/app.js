@@ -16,6 +16,7 @@
   };
 
   const DOOR_API_URL = "/api/shelly-control";
+  const DEVICE_BLOCK_ENDPOINT = "/.netlify/functions/device-block";
   const SECRET_KEY = "musart_secret_123_fixed_key";
   const CODE_VERSION_KEY = "code_version";
   const KEEP_TOKEN_IN_URL = true;
@@ -158,6 +159,44 @@
       return id;
     } catch {
       return "dev-" + Date.now();
+    }
+  }
+
+  async function checkDeviceBlocked() {
+    // Skip when running from a plain file server without Netlify functions
+    const origin = window.location.origin || "";
+    if (origin.includes("127.0.0.1:5500") || origin.startsWith("file://")) {
+      return false;
+    }
+
+    const id = getDeviceId();
+    try {
+      const resp = await fetch(
+        `${DEVICE_BLOCK_ENDPOINT}?deviceId=${encodeURIComponent(id)}`
+      );
+      if (!resp.ok) return false;
+      const data = await resp.json();
+      if (data.blocked) {
+        blockAccess(data.reason || "Dispositivo bloccato", null);
+        showSessionExpired();
+        return true;
+      }
+    } catch (e) {
+      console.warn("Impossibile verificare blocco dispositivo", e);
+    }
+    return false;
+  }
+
+  async function blockDeviceOnServer(reason = "blocked") {
+    const id = getDeviceId();
+    try {
+      await fetch(DEVICE_BLOCK_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deviceId: id, reason }),
+      });
+    } catch (e) {
+      console.warn("Impossibile registrare blocco dispositivo", e);
     }
   }
 
@@ -458,6 +497,7 @@
     qs("controlPanel")?.classList.add("hidden");
     qs("sessionExpired")?.classList.remove("hidden");
     qs("test2") && (qs("test2").style.display = "none");
+    blockDeviceOnServer("Sessione scaduta o link bloccato");
 
     DEVICES.forEach((device) => {
       const btn = qs(device.button_id);
@@ -899,53 +939,29 @@
     }
 
     try {
-      const snapshot = await database
-        .ref("secure_links/" + token)
-        .once("value");
-      if (!snapshot.exists()) {
-        showTokenError("Invalid token");
-        blockTokenOnly("Invalid token", token);
-        showAuthForm();
-        maybeCleanUrl();
-        return false;
-      }
+      const resp = await fetch(
+        `/.netlify/functions/validate-link?token=${encodeURIComponent(token)}`,
+        {
+          headers: { "X-Device-Id": getDeviceId() },
+        }
+      );
 
-      const linkData = snapshot.val();
-
-      // Bind to first device: if mismatch, block immediately
-      const deviceId = getDeviceId();
-      if (linkData.deviceId && linkData.deviceId !== deviceId) {
-        const reason = "Link bloccato: altro dispositivo";
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        const reason =
+          data?.error || data?.message || `Link non valido (${resp.status})`;
         blockTokenOnly(reason, token);
         showTokenError(reason);
         showSessionExpired();
         return false;
       }
 
-      if (isTokenDeviceBlocked(token)) {
-        const r =
-          localStorage.getItem(`token_device_reason_${token}`) ||
-          "Sessione token scaduta su questo dispositivo";
-        showTokenError(r);
-        blockTokenOnly(r, token);
-        showAuthForm();
-        maybeCleanUrl();
-        return false;
-      }
-
-      const isValid = validateSecureToken(linkData);
-      if (!isValid.valid) {
-        showTokenError(isValid.reason);
-        blockTokenOnly(isValid.reason || "Access blocked", token);
-        showAuthForm();
-        maybeCleanUrl();
-        return false;
-      }
+      const data = await resp.json();
 
       isTokenSession = true;
       window.isTokenSession = true;
       currentTokenId = token;
-      currentTokenCustomCode = linkData.customCode || null;
+      currentTokenCustomCode = data.customCode || null;
 
       localStorage.removeItem("block_manual_login");
       localStorage.removeItem("blocked_token");
@@ -958,10 +974,11 @@
         qs("sessionExpired")?.classList.add("hidden");
       } catch {}
 
-      showTokenNotification(isValid.remainingUses, !!currentTokenCustomCode);
-      await incrementTokenUsage(token, linkData);
-      maybeCleanUrl();
-      startTokenExpirationCheck(linkData.expiration);
+      showTokenNotification(
+        data.remainingUses || "∞",
+        !!currentTokenCustomCode
+      );
+      if (data.expiration) startTokenExpirationCheck(data.expiration);
       startTokenRealtimeListener(token);
 
       showAuthForm();
@@ -1414,6 +1431,10 @@
     // FIXED: Always hide overlays on startup
     qs("expiredOverlay")?.classList.add("hidden");
     qs("sessionExpired")?.classList.add("hidden");
+
+    // Check server-side device block first
+    const blocked = await checkDeviceBlocked();
+    if (blocked) return;
 
     const firebaseSettings = await loadSettingsFromFirebase();
     if (firebaseSettings) applyFirebaseSettings(firebaseSettings);
