@@ -857,6 +857,12 @@
       if (response.ok && result && result.success) {
         showDevicePopup(device, clicksLeft);
       } else {
+        if (response.status === 403) {
+          const reason =
+            result?.message || "Accesso bloccato: link non piu valido";
+          blockAccess(reason, currentTokenId || null);
+          showSessionExpired();
+        }
         setClicksLeft(device.storage_key, clicksLeft + 1);
         updateButtonState(device);
         console.error(
@@ -868,6 +874,8 @@
       }
     } catch (error) {
       console.error("Attivazione dispositivo fallita:", error);
+      blockAccess("Errore di rete: accesso bloccato", currentTokenId || null);
+      showSessionExpired();
       setClicksLeft(device.storage_key, clicksLeft + 1);
       updateButtonState(device);
     }
@@ -903,6 +911,16 @@
       }
 
       const linkData = snapshot.val();
+
+      // Bind to first device: if mismatch, block immediately
+      const deviceId = getDeviceId();
+      if (linkData.deviceId && linkData.deviceId !== deviceId) {
+        const reason = "Link bloccato: altro dispositivo";
+        blockTokenOnly(reason, token);
+        showTokenError(reason);
+        showSessionExpired();
+        return false;
+      }
 
       if (isTokenDeviceBlocked(token)) {
         const r =
