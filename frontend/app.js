@@ -188,6 +188,10 @@
   }
 
   async function blockDeviceOnServer(reason = "blocked") {
+    const origin = window.location.origin || "";
+    if (origin.includes("127.0.0.1:5500") || origin.startsWith("file://")) {
+      return;
+    }
     const id = getDeviceId();
     try {
       await fetch(DEVICE_BLOCK_ENDPOINT, {
